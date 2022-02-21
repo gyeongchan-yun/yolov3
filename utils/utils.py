@@ -10,8 +10,8 @@ from pathlib import Path
 from sys import platform
 
 import cv2
-import matplotlib
-import matplotlib.pyplot as plt
+#import matplotlib
+#import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
@@ -21,9 +21,9 @@ from tqdm import tqdm
 from . import torch_utils  # , google_utils
 
 # Set printoptions
-torch.set_printoptions(linewidth=320, precision=5, profile='long')
-np.set_printoptions(linewidth=320, formatter={'float_kind': '{:11.5g}'.format})  # format short g, %precision=5
-matplotlib.rc('font', **{'size': 11})
+#torch.set_printoptions(linewidth=320, precision=5, profile='long')
+#np.set_printoptions(linewidth=320, formatter={'float_kind': '{:11.5g}'.format})  # format short g, %precision=5
+#matplotlib.rc('font', **{'size': 11})
 
 # Prevent OpenCV from multithreading (to use PyTorch DataLoader)
 cv2.setNumThreads(0)
@@ -857,6 +857,13 @@ def plot_wh_methods():  # from utils.utils import *; plot_wh_methods()
 
 
 def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max_size=640, max_subplots=16):
+    try:
+        import matplotlib
+        import matplotlib.pyplot as plt
+    except:
+        print('No import matplot')
+        return
+
     tl = 3  # line thickness
     tf = max(tl - 1, 1)  # font thickness
     if os.path.isfile(fname):  # do not overwrite

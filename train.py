@@ -3,7 +3,7 @@ import argparse
 import torch.distributed as dist
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 
 import test  # import test.py to get mAP after each epoch
 from models import *
@@ -56,7 +56,7 @@ if hyp['fl_gamma']:
 
 def train(hyp):
     cfg = opt.cfg
-    data = opt.data
+    data_config = opt.data_config
     epochs = opt.epochs  # 500200 batches at bs 64, 117263 images = 273 epochs
     batch_size = opt.batch_size
     accumulate = max(round(64 / batch_size), 1)  # accumulate n times before optimizer update (bs 64)
@@ -77,9 +77,13 @@ def train(hyp):
 
     # Configure run
     init_seeds()
-    data_dict = parse_data_cfg(data)
-    train_path = data_dict['train']
-    test_path = data_dict['valid']
+    data_dict = parse_data_cfg(data_config)
+    #train_path = data_dict['train']
+    #test_path = data_dict['valid']
+    train_path = os.path.join(opt.data, data_dict['train'])
+    test_path = os.path.join(opt.data, data_dict['valid'])
+    print(f'[INFO] train_path: {train_path}')
+    print(f'[INFO] test_path: {test_path}')
     nc = 1 if opt.single_cls else int(data_dict['classes'])  # number of classes
     hyp['cls'] *= nc / 80  # update coco-tuned hyp['cls'] to current dataset
 
@@ -250,6 +254,9 @@ def train(hyp):
         print(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'GIoU', 'obj', 'cls', 'total', 'targets', 'img_size'))
         pbar = tqdm(enumerate(dataloader), total=nb)  # progress bar
         for i, (imgs, targets, paths, _) in pbar:  # batch -------------------------------------------------------------
+            #if i > 10:
+            #    print('[DEBUG] break 10 steps!')
+            #    break
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device).float() / 255.0  # uint8 to float32, 0 - 255 to 0.0 - 1.0
             targets = targets.to(device)
@@ -305,12 +312,14 @@ def train(hyp):
             pbar.set_description(s)
 
             # Plot
+            """
             if ni < 1:
                 f = 'train_batch%g.jpg' % i  # filename
                 res = plot_images(images=imgs, targets=targets, paths=paths, fname=f)
                 if tb_writer:
                     tb_writer.add_image(f, res, dataformats='HWC', global_step=epoch)
                     # tb_writer.add_graph(model, imgs)  # add model to tensorboard
+            """
 
             # end batch ------------------------------------------------------------------------------------------------
 
@@ -321,9 +330,9 @@ def train(hyp):
         ema.update_attr(model)
         final_epoch = epoch + 1 == epochs
         if not opt.notest or final_epoch:  # Calculate mAP
-            is_coco = any([x in data for x in ['coco.data', 'coco2014.data', 'coco2017.data']]) and model.nc == 80
+            is_coco = any([x in data_config for x in ['coco.data', 'coco2014.data', 'coco2017.data']]) and model.nc == 80
             results, maps = test.test(cfg,
-                                      data,
+                                      data_config,
                                       batch_size=batch_size,
                                       imgsz=imgsz_test,
                                       model=ema.ema,
@@ -394,7 +403,7 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=300)  # 500200 batches at bs 16, 117263 COCO images = 273 epochs
     parser.add_argument('--batch-size', type=int, default=16)  # effective bs = batch_size * accumulate = 16 * 4 = 64
     parser.add_argument('--cfg', type=str, default='cfg/yolov3-spp.cfg', help='*.cfg path')
-    parser.add_argument('--data', type=str, default='data/coco2017.data', help='*.data path')
+    parser.add_argument('--data-config', type=str, default='data/coco2017.data', help='*.data path')
     parser.add_argument('--multi-scale', action='store_true', help='adjust (67%% - 150%%) img_size every 10 batches')
     parser.add_argument('--img-size', nargs='+', type=int, default=[320, 640], help='[min_train, max-train, test]')
     parser.add_argument('--rect', action='store_true', help='rectangular training')
@@ -410,11 +419,12 @@ if __name__ == '__main__':
     parser.add_argument('--adam', action='store_true', help='use adam optimizer')
     parser.add_argument('--single-cls', action='store_true', help='train as single-class dataset')
     parser.add_argument('--freeze-layers', action='store_true', help='Freeze non-output layers')
+    parser.add_argument('data', metavar='DIR', help='path to dataset directoty')
     opt = parser.parse_args()
     opt.weights = last if opt.resume and not opt.weights else opt.weights
     check_git_status()
     opt.cfg = check_file(opt.cfg)  # check file
-    opt.data = check_file(opt.data)  # check file
+    opt.data_config = check_file(opt.data_config)  # check file
     print(opt)
     opt.img_size.extend([opt.img_size[-1]] * (3 - len(opt.img_size)))  # extend to 3 sizes (min, max, test)
     device = torch_utils.select_device(opt.device, apex=mixed_precision, batch_size=opt.batch_size)
@@ -427,7 +437,7 @@ if __name__ == '__main__':
     tb_writer = None
     if not opt.evolve:  # Train normally
         print('Start Tensorboard with "tensorboard --logdir=runs", view at http://localhost:6006/')
-        tb_writer = SummaryWriter(comment=opt.name)
+        #tb_writer = SummaryWriter(comment=opt.name)
         train(hyp)  # train normally
 
     else:  # Evolve hyperparameters (optional)
